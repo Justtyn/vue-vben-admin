@@ -13,7 +13,7 @@ const clickLogo = () => {};
 
 <template>
   <AuthPageLayout
-    :app-name="appName"
+    :app-name="OnlineJudge Admin"
     :logo="logo"
     :page-description="$t('authentication.pageDesc')"
     :page-title="$t('authentication.pageTitle')"
