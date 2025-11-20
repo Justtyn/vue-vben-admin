@@ -13,19 +13,10 @@ defineOptions({ name: 'Login' });
 
 const authStore = useAuthStore();
 
-const MOCK_USER_OPTIONS: BasicOption[] = [
-  {
-    label: 'Super',
-    value: 'vben',
-  },
-  {
-    label: 'Admin',
-    value: 'admin',
-  },
-  {
-    label: 'User',
-    value: 'jack',
-  },
+const ROLE_OPTIONS: BasicOption[] = [
+  { label: '管理员', value: 'admin' },
+  { label: '教师', value: 'teacher' },
+  { label: '学生', value: 'student' },
 ];
 
 const formSchema = computed((): VbenFormSchema[] => {
@@ -33,37 +24,17 @@ const formSchema = computed((): VbenFormSchema[] => {
     {
       component: 'VbenSelect',
       componentProps: {
-        options: MOCK_USER_OPTIONS,
-        placeholder: $t('authentication.selectAccount'),
+        options: ROLE_OPTIONS,
+        placeholder: '请选择登录身份',
       },
-      fieldName: 'selectAccount',
-      label: $t('authentication.selectAccount'),
-      rules: z
-        .string()
-        .min(1, { message: $t('authentication.selectAccount') })
-        .optional()
-        .default('vben'),
+      fieldName: 'role',
+      label: '登录身份',
+      rules: z.string().min(1, { message: '请选择登录身份' }).default('admin'),
     },
     {
       component: 'VbenInput',
       componentProps: {
         placeholder: $t('authentication.usernameTip'),
-      },
-      dependencies: {
-        trigger(values, form) {
-          if (values.selectAccount) {
-            const findUser = MOCK_USER_OPTIONS.find(
-              (item) => item.value === values.selectAccount,
-            );
-            if (findUser) {
-              form.setValues({
-                password: '123456',
-                username: findUser.value,
-              });
-            }
-          }
-        },
-        triggerFields: ['selectAccount'],
       },
       fieldName: 'username',
       label: $t('authentication.username'),
@@ -93,6 +64,12 @@ const formSchema = computed((): VbenFormSchema[] => {
   <AuthenticationLogin
     :form-schema="formSchema"
     :loading="authStore.loginLoading"
+    :show-code-login="false"
+    :show-forget-password="false"
+    :show-qrcode-login="false"
+    :show-register="false"
+    :show-remember-me="false"
+    :show-third-party-login="false"
     @submit="authStore.authLogin"
   />
 </template>

@@ -1,4 +1,5 @@
 import type { Recordable, UserInfo } from '@vben/types';
+import type { AuthUserInfo } from '#/api';
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -10,8 +11,34 @@ import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
-import { getAccessCodesApi, getUserInfoApi, loginApi, logoutApi } from '#/api';
+import { getUserInfoApi, loginApi, logoutApi } from '#/api';
 import { $t } from '#/locales';
+
+function stripBearer(token?: string | null) {
+  return token?.replace(/^Bearer\s+/i, '').trim() ?? '';
+}
+
+function transformAuthUser(user: AuthUserInfo): UserInfo {
+  const normalizedRole = user.role ? user.role.toUpperCase() : '';
+  const roles = normalizedRole ? [normalizedRole] : [];
+  const realName =
+    (user.details?.name as string | undefined) ?? user.username ?? '';
+
+  return {
+    avatar: user.avatar ?? preferences.app.defaultAvatar,
+    desc:
+      (user.details?.title as string | undefined) ??
+      normalizedRole ??
+      user.role ??
+      'ADMIN',
+    homePath: preferences.app.defaultHomePath,
+    realName,
+    roles,
+    token: stripBearer(user.token),
+    userId: String(user.id),
+    username: user.username,
+  };
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const accessStore = useAccessStore();
@@ -33,22 +60,22 @@ export const useAuthStore = defineStore('auth', () => {
     let userInfo: null | UserInfo = null;
     try {
       loginLoading.value = true;
-      const { accessToken } = await loginApi(params);
+      const payload = {
+        password: (params.password as string) ?? '',
+        role: (params.role as 'student' | 'teacher' | 'admin') ?? 'admin',
+        username: (params.username as string) ?? '',
+      };
+      const { token } = await loginApi(payload);
+      const sanitizedToken = stripBearer(token);
 
       // 如果成功获取到 accessToken
-      if (accessToken) {
-        accessStore.setAccessToken(accessToken);
+      if (sanitizedToken) {
+        accessStore.setAccessToken(sanitizedToken);
 
         // 获取用户信息并存储到 accessStore 中
-        const [fetchUserInfoResult, accessCodes] = await Promise.all([
-          fetchUserInfo(),
-          getAccessCodesApi(),
-        ]);
+        const fetchUserInfoResult = await fetchUserInfo();
 
         userInfo = fetchUserInfoResult;
-
-        userStore.setUserInfo(userInfo);
-        accessStore.setAccessCodes(accessCodes);
 
         if (accessStore.loginExpired) {
           accessStore.setLoginExpired(false);
@@ -60,9 +87,9 @@ export const useAuthStore = defineStore('auth', () => {
               );
         }
 
-        if (userInfo?.realName) {
+        if (userInfo?.realName || userInfo?.username) {
           notification.success({
-            description: `${$t('authentication.loginSuccessDesc')}:${userInfo?.realName}`,
+            description: `${$t('authentication.loginSuccessDesc')}:${userInfo?.realName || userInfo?.username}`,
             duration: 3,
             message: $t('authentication.loginSuccess'),
           });
@@ -79,7 +106,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout(redirect: boolean = true) {
     try {
-      await logoutApi();
+      if (accessStore.accessToken) {
+        await logoutApi();
+      }
     } catch {
       // 不做任何处理
     }
@@ -99,8 +128,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function fetchUserInfo() {
     let userInfo: null | UserInfo = null;
-    userInfo = await getUserInfoApi();
+    const authUser = await getUserInfoApi();
+    userInfo = transformAuthUser(authUser);
     userStore.setUserInfo(userInfo);
+    accessStore.setAccessCodes(userInfo.roles ?? []);
     return userInfo;
   }
 
